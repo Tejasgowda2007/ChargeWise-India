@@ -1,33 +1,70 @@
-import streamlit as st
+import math
+import os
+
 import pandas as pd
 import plotly.express as px
-import folium
-from streamlit_folium import st_folium
+import streamlit as st
 
+# ----------------------------------------------------------------------------
+# Page setup + theme
+# ----------------------------------------------------------------------------
 st.set_page_config(
     page_title="ChargeWise India",
     page_icon="⚡",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="expanded",
 )
 
-st.markdown("""
+PRIMARY = "#38bdf8"
+BG = "#0b1120"
+CARD = "#172238"
+BORDER = "#263852"
+TIER_COLORS = {"Tier 1": "#38bdf8", "Tier 2": "#818cf8", "Tier 3": "#34d399"}
+
+st.markdown(
+    f"""
 <style>
-.stApp {background:#0b1120;color:#f1f5f9}
-[data-testid="stMetric"] {
-    background:#172238;padding:18px;border-radius:12px;
-    border:1px solid #263852
-}
-h1,h2,h3 {color:#38bdf8 !important}
-section[data-testid="stSidebar"] {background:#151d2e}
+.stApp {{background:{BG};color:#f1f5f9}}
+.block-container {{padding-top:1.5rem;max-width:1400px}}
+section[data-testid="stSidebar"] {{background:#0f172a;border-right:1px solid {BORDER}}}
+[data-testid="stMetric"] {{
+    background:linear-gradient(145deg,{CARD},#111c30);
+    padding:16px 18px;border-radius:14px;border:1px solid {BORDER};
+}}
+[data-testid="stMetricLabel"] {{color:#94a3b8}}
+[data-testid="stMetricValue"] {{color:#f8fafc;font-weight:700}}
+h1,h2,h3 {{color:#f8fafc !important;letter-spacing:-0.01em}}
+.hero {{
+    background:linear-gradient(120deg,#0c4a6e 0%,#1e1b4b 100%);
+    border:1px solid {BORDER};border-radius:18px;padding:26px 30px;margin-bottom:18px;
+}}
+.hero h1 {{margin:0;font-size:2.1rem;color:#fff !important}}
+.hero p {{margin:6px 0 0 0;color:#cbd5e1;font-size:1.02rem}}
+.badge {{
+    display:inline-block;background:#0ea5e922;color:{PRIMARY};border:1px solid #0ea5e955;
+    padding:3px 12px;border-radius:999px;font-size:0.78rem;margin-top:12px;margin-right:6px;
+}}
+.insight {{
+    background:{CARD};border-left:4px solid {PRIMARY};border-radius:8px;
+    padding:12px 16px;margin:8px 0;color:#e2e8f0;
+}}
+.stTabs [data-baseweb="tab-list"] {{gap:6px}}
+.stTabs [data-baseweb="tab"] {{
+    background:{CARD};border-radius:10px 10px 0 0;padding:8px 18px;color:#94a3b8;
+}}
+.stTabs [aria-selected="true"] {{color:{PRIMARY} !important;border-bottom:2px solid {PRIMARY}}}
+footer {{visibility:hidden}}
 </style>
-""", unsafe_allow_html=True)
+""",
+    unsafe_allow_html=True,
+)
 
-# Official state-wise public charging-station counts
-# Source: PIB / Ministry of Heavy Industries / BEE
-# Reporting date: 1 April 2025
-# These are state totals, not individual station coordinates.
-
-data = [
+# ----------------------------------------------------------------------------
+# Data
+# Source: PIB / Ministry of Heavy Industries / BEE (reporting date 1 April 2025)
+# State totals only - not individual station coordinates.
+# ----------------------------------------------------------------------------
+DATA = [
     ("Andaman and Nicobar Islands", 4, 0, 0, 4),
     ("Andhra Pradesh", 0, 153, 463, 616),
     ("Arunachal Pradesh", 0, 0, 42, 42),
@@ -65,244 +102,348 @@ data = [
     ("West Bengal", 23, 21, 747, 791),
 ]
 
-df = pd.DataFrame(
-    data,
-    columns=[
-        "State", "Tier 1", "Tier 2", "Tier 3", "Total"
-    ]
-)
+GEOJSON_FILE = "india_states.geojson"      # optional: put this file next to app.py
+GEOJSON_KEY = "properties.ST_NM"           # change to match your GeoJSON's state-name field
 
-st.title("⚡ CHARGEWISE INDIA")
-st.subheader("EV Infrastructure Mapping & Charging Gap Analysis")
-st.caption("Official state-level data | Reported 1 April 2025")
 
-st.info(
-    "Source: Bureau of Energy Efficiency, Ministry of Power, "
-    "published by the Ministry of Heavy Industries through PIB. "
-    "These counts describe public charging stations in Tier 1, 2 and 3 "
-    "cities as reported on 1 April 2025. They are not live counts."
-)
+@st.cache_data
+def load_data() -> pd.DataFrame:
+    d = pd.DataFrame(DATA, columns=["State", "Tier 1", "Tier 2", "Tier 3", "Total"])
+    d["Share of India (%)"] = (d["Total"] / d["Total"].sum() * 100).round(2)
+    d["Rank"] = d["Total"].rank(ascending=False, method="min").astype(int)
+    return d
 
+
+df = load_data()
+TOTAL = int(df["Total"].sum())
+tier_totals = {t: int(df[t].sum()) for t in ["Tier 1", "Tier 2", "Tier 3"]}
+
+
+def style(fig, height=420):
+    """Apply one consistent look to every chart."""
+    fig.update_layout(
+        template="plotly_dark",
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        height=height,
+        margin=dict(l=10, r=10, t=50, b=10),
+        font=dict(family="Inter, sans-serif", color="#e2e8f0"),
+        title_font=dict(size=16),
+        legend=dict(orientation="h", y=-0.15),
+    )
+    fig.update_xaxes(gridcolor="#1e293b")
+    fig.update_yaxes(gridcolor="#1e293b")
+    return fig
+
+
+# ----------------------------------------------------------------------------
+# Sidebar
+# ----------------------------------------------------------------------------
 with st.sidebar:
-    st.header("Dashboard")
-    page = st.radio(
-        "Choose a view",
-        [
-            "Overview",
-            "State Analysis",
-            "Infrastructure Gaps",
-            "Future Projection",
-            "Data Table & Sources"
-        ]
+    st.markdown("### ⚡ ChargeWise India")
+    st.caption("EV infrastructure planning prototype")
+    st.divider()
+    tier_pick = st.multiselect(
+        "City tiers to include",
+        ["Tier 1", "Tier 2", "Tier 3"],
+        default=["Tier 1", "Tier 2", "Tier 3"],
+        help="Recalculates totals across the whole dashboard.",
+    )
+    st.divider()
+    st.caption("Data: BEE / Ministry of Heavy Industries via PIB")
+    st.caption("Reported: 1 April 2025 (not a live count)")
+
+if not tier_pick:
+    st.warning("Select at least one city tier in the sidebar.")
+    st.stop()
+
+# Recompute "Selected" total from the chosen tiers
+df["Selected"] = df[tier_pick].sum(axis=1)
+SEL_TOTAL = int(df["Selected"].sum())
+
+# ----------------------------------------------------------------------------
+# Hero + KPIs
+# ----------------------------------------------------------------------------
+st.markdown(
+    """
+<div class="hero">
+  <h1>⚡ ChargeWise India</h1>
+  <p>EV infrastructure mapping &amp; charging gap analysis across Indian states and UTs</p>
+  <span class="badge">Official BEE data</span>
+  <span class="badge">As of 1 April 2025</span>
+  <span class="badge">35 states &amp; UTs</span>
+</div>
+""",
+    unsafe_allow_html=True,
+)
+
+ranked = df.sort_values("Selected", ascending=False).reset_index(drop=True)
+top_state = ranked.loc[0, "State"]
+top3_share = ranked.head(3)["Selected"].sum() / SEL_TOTAL * 100
+tier3_share = df["Tier 3"].sum() / TOTAL * 100
+
+k1, k2, k3, k4, k5 = st.columns(5)
+k1.metric("Public charging stations", f"{SEL_TOTAL:,}")
+k2.metric("States & UTs", len(df))
+k3.metric("Leading state", top_state, f"{ranked.loc[0, 'Selected']:,} stations", delta_color="off")
+k4.metric("Top-3 states' share", f"{top3_share:.0f}%")
+k5.metric("Tier 3 share (all tiers)", f"{tier3_share:.0f}%")
+
+# ----------------------------------------------------------------------------
+# Tabs
+# ----------------------------------------------------------------------------
+tab_over, tab_state, tab_gap, tab_proj, tab_data = st.tabs(
+    ["📊 Overview", "🗺️ State Explorer", "🎯 Gap Analysis", "📈 Projection", "📚 Data & Method"]
+)
+
+# ---------------------------- OVERVIEW --------------------------------------
+with tab_over:
+    st.markdown(
+        f"""
+<div class="insight"><b>Key insight:</b> The top 3 states ({', '.join(ranked.head(3)['State'])})
+hold <b>{top3_share:.0f}%</b> of reported stations, so infrastructure is heavily concentrated.</div>
+<div class="insight"><b>Coverage:</b> {int((df['Selected'] < 100).sum())} of {len(df)} states/UTs
+report fewer than 100 stations in the selected tiers.</div>
+""",
+        unsafe_allow_html=True,
     )
 
-    st.divider()
-    st.write("ChargeWise India")
-    st.caption("EV infrastructure planning prototype")
-
-# Overview metrics
-a, b, c, d = st.columns(4)
-a.metric("Public charging stations", f"{df['Total'].sum():,}")
-b.metric("States and UTs listed", len(df))
-c.metric("Highest total", "Karnataka")
-d.metric("Karnataka stations", f"{5880:,}")
-
-if page == "Overview":
-    st.header("National Infrastructure Overview")
-
-    left, right = st.columns([1.4, 1])
-
+    left, right = st.columns([1.5, 1])
     with left:
+        top12 = ranked.head(12)["State"].tolist()
+        long = (
+            df[df["State"].isin(top12)]
+            .melt(id_vars="State", value_vars=tier_pick, var_name="Tier", value_name="Stations")
+        )
         fig = px.bar(
-            df.sort_values("Total").tail(12),
-            x="Total",
+            long,
+            x="Stations",
             y="State",
+            color="Tier",
             orientation="h",
-            color="Total",
-            color_continuous_scale="Blues",
-            title="12 largest reported state/UT totals"
+            color_discrete_map=TIER_COLORS,
+            category_orders={"State": top12[::-1]},
+            title="Top 12 states by public charging stations (stacked by tier)",
         )
-        fig.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="#0b1120",
-            plot_bgcolor="#0b1120",
-            coloraxis_showscale=False
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(style(fig, 460), use_container_width=True)
 
     with right:
-        tier_totals = pd.DataFrame({
-            "City category": ["Tier 1", "Tier 2", "Tier 3"],
-            "Stations": [9702, 4625, 12040]
-        })
+        tdf = pd.DataFrame(
+            {"Tier": tier_pick, "Stations": [tier_totals[t] for t in tier_pick]}
+        )
         fig2 = px.pie(
-            tier_totals,
-            names="City category",
-            values="Stations",
-            hole=0.48,
-            title="Reported stations by city tier"
+            tdf, names="Tier", values="Stations", hole=0.55,
+            color="Tier", color_discrete_map=TIER_COLORS,
+            title="Stations by city tier",
         )
-        fig2.update_layout(
-            template="plotly_dark",
-            paper_bgcolor="#0b1120"
+        fig2.update_traces(textinfo="percent+label")
+        st.plotly_chart(style(fig2, 460), use_container_width=True)
+
+    # Optional choropleth: only shown if a GeoJSON file is present in the repo
+    if os.path.exists(GEOJSON_FILE):
+        import json
+
+        with open(GEOJSON_FILE, encoding="utf-8") as f:
+            geo = json.load(f)
+        fig3 = px.choropleth(
+            df, geojson=geo, locations="State", featureidkey=GEOJSON_KEY,
+            color="Selected", color_continuous_scale="Blues",
+            title="Public charging stations by state",
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        fig3.update_geos(fitbounds="locations", visible=False)
+        st.plotly_chart(style(fig3, 560), use_container_width=True)
+    else:
+        st.caption(
+            f"💡 Add `{GEOJSON_FILE}` (India state boundaries) next to app.py "
+            "to enable the state choropleth map here."
+        )
 
-    st.subheader("India Map")
-    st.write(
-        "The map provides geographic context. State totals are not "
-        "individual station coordinates, so station markers are not shown."
-    )
-    m = folium.Map(
-        location=[22.5, 79.0],
-        zoom_start=4,
-        tiles="CartoDB positron"
-    )
-    st_folium(m, height=400, use_container_width=True)
-
-elif page == "State Analysis":
-    st.header("State-wise Charging Infrastructure")
-
-    selected = st.multiselect(
-        "Select states",
+# ---------------------------- STATE EXPLORER --------------------------------
+with tab_state:
+    c1, c2 = st.columns([3, 1])
+    selected = c1.multiselect(
+        "Compare states",
         df["State"].tolist(),
-        default=["Karnataka", "Maharashtra", "Uttar Pradesh",
-                 "Tamil Nadu", "Kerala"]
+        default=["Karnataka", "Maharashtra", "Uttar Pradesh", "Tamil Nadu", "Kerala"],
+    )
+    sort_by = c2.selectbox("Sort by", ["Selected"] + tier_pick)
+
+    if selected:
+        f = df[df["State"].isin(selected)].sort_values(sort_by)
+        long = f.melt(id_vars="State", value_vars=tier_pick, var_name="Tier", value_name="Stations")
+        fig = px.bar(
+            long, x="State", y="Stations", color="Tier", barmode="group",
+            color_discrete_map=TIER_COLORS,
+            category_orders={"State": f["State"].tolist()},
+            title="Stations by tier for selected states",
+        )
+        st.plotly_chart(style(fig, 420), use_container_width=True)
+
+        st.dataframe(
+            f[["Rank", "State"] + tier_pick + ["Selected", "Share of India (%)"]],
+            use_container_width=True,
+            hide_index=True,
+            column_config={
+                "Selected": st.column_config.ProgressColumn(
+                    "Total (selected tiers)", min_value=0,
+                    max_value=int(df["Selected"].max()), format="%d",
+                ),
+                "Share of India (%)": st.column_config.NumberColumn(format="%.2f%%"),
+            },
+        )
+    else:
+        st.info("Pick at least one state to compare.")
+
+# ---------------------------- GAP ANALYSIS ----------------------------------
+with tab_gap:
+    st.subheader("Charging Gap Finder")
+    st.caption(
+        "Station counts alone don't prove a gap. Upload EV registrations (e.g. from VAHAN) "
+        "to compute EVs per charging station and the chargers needed to hit a target ratio."
     )
 
-    filtered = df[df["State"].isin(selected)]
-
-    fig = px.bar(
-        filtered.sort_values("Total"),
-        x="Total",
-        y="State",
-        orientation="h",
-        color="Total",
-        color_continuous_scale="Teal",
-        title="Reported public charging stations by state/UT"
+    template = pd.DataFrame({"State": df["State"], "EVs": ""})
+    cA, cB = st.columns([1, 2])
+    cA.download_button(
+        "⬇️ Download CSV template",
+        template.to_csv(index=False).encode("utf-8"),
+        "ev_registrations_template.csv",
+        "text/csv",
     )
-    fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="#0b1120",
-        plot_bgcolor="#0b1120"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+    up = cB.file_uploader("Upload EV registrations CSV (columns: State, EVs)", type="csv")
 
-    st.dataframe(filtered, use_container_width=True, hide_index=True)
+    if up is not None:
+        ev = pd.read_csv(up)
+        ev.columns = [c.strip() for c in ev.columns]
+        if not {"State", "EVs"}.issubset(ev.columns):
+            st.error("CSV must have the columns `State` and `EVs`.")
+        else:
+            ev["EVs"] = pd.to_numeric(ev["EVs"], errors="coerce")
+            ev = ev.dropna(subset=["EVs"])
+            ev["key"] = ev["State"].str.strip().str.lower()
+            base = df.assign(key=df["State"].str.lower())
+            gap = base.merge(ev[["key", "EVs"]], on="key", how="inner")
 
-elif page == "Infrastructure Gaps":
-    st.header("Infrastructure Gap Screening")
+            unmatched = sorted(set(ev["State"]) - set(gap["State"]))
+            if unmatched:
+                st.warning("Names not matched to the dataset: " + ", ".join(unmatched))
 
-    st.warning(
-        "Low station counts alone do not prove an infrastructure gap. "
-        "A proper gap model also needs EV registrations, population, "
-        "traffic, road access, charger capacity, and geographic coverage."
-    )
+            target = st.slider(
+                "Target: EVs per public charging station", 5, 100, 20,
+                help="Your planning assumption; change it to test scenarios.",
+            )
+            gap["EVs per station"] = (gap["EVs"] / gap["Total"].replace(0, pd.NA)).astype(float).round(1)
+            gap["Stations needed"] = gap.apply(
+                lambda r: max(0, math.ceil(r["EVs"] / target - r["Total"])), axis=1
+            )
+            gap = gap.sort_values("EVs per station", ascending=False)
 
-    st.subheader("Lowest reported totals")
-    st.dataframe(
-        df.sort_values("Total").head(10),
-        use_container_width=True,
-        hide_index=True
-    )
+            g1, g2, g3 = st.columns(3)
+            g1.metric("States analysed", len(gap))
+            g2.metric("Most stretched", gap.iloc[0]["State"], f"{gap.iloc[0]['EVs per station']} EVs/station", delta_color="off")
+            g3.metric("Extra stations to hit target", f"{int(gap['Stations needed'].sum()):,}")
 
-    st.subheader("Planning considerations")
-    st.markdown("""
-    - Compare charger availability with EV registrations.
-    - Measure distance to the nearest public charging facility.
-    - Consider highways, traffic flows and travel corridors.
-    - Account for fast/slow charging capacity and connector compatibility.
-    - Validate candidate locations through field or official data.
-    """)
+            fig = px.bar(
+                gap.head(15), x="EVs per station", y="State", orientation="h",
+                color="EVs per station", color_continuous_scale="Reds",
+                category_orders={"State": gap.head(15)["State"].tolist()[::-1]},
+                title="Most stretched states (EVs per public charging station)",
+            )
+            fig.update_layout(coloraxis_showscale=False)
+            fig.add_vline(x=target, line_dash="dash", line_color="#fbbf24",
+                          annotation_text="target", annotation_font_color="#fbbf24")
+            st.plotly_chart(style(fig, 480), use_container_width=True)
 
-elif page == "Future Projection":
-    st.header("Future Demand Scenario Explorer")
+            st.dataframe(
+                gap[["State", "EVs", "Total", "EVs per station", "Stations needed"]],
+                use_container_width=True, hide_index=True,
+            )
+            st.download_button(
+                "⬇️ Download gap results",
+                gap[["State", "EVs", "Total", "EVs per station", "Stations needed"]]
+                .to_csv(index=False).encode("utf-8"),
+                "chargewise_gap_results.csv", "text/csv",
+            )
+    else:
+        st.markdown("#### Screening without EV data")
+        only_t3 = df[(df["Tier 1"] == 0) & (df["Tier 2"] == 0) & (df["Tier 3"] > 0)]
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown("**Lowest reported totals**")
+            st.dataframe(
+                df.sort_values("Total").head(10)[["State", "Total"]],
+                use_container_width=True, hide_index=True,
+            )
+        with c2:
+            st.markdown("**States with stations only in Tier 3 cities**")
+            st.dataframe(
+                only_t3[["State", "Tier 3"]].sort_values("Tier 3", ascending=False),
+                use_container_width=True, hide_index=True,
+            )
+        st.info(
+            "A full gap model also needs EV registrations, population, traffic, road access, "
+            "charger capacity and distance to the nearest charger."
+        )
 
-    st.write(
-        "This is an illustrative scenario, not an official forecast."
-    )
+# ---------------------------- PROJECTION ------------------------------------
+with tab_proj:
+    st.subheader("Scenario Explorer")
+    st.caption("Illustrative scenario - not an official forecast.")
 
-    start = st.number_input(
-        "Starting station count",
-        min_value=1,
-        value=26367,
-        step=100
-    )
-    rate = st.slider("Assumed annual growth (%)", 0, 50, 15)
-    years = st.slider("Projection period (years)", 1, 15, 5)
+    p1, p2, p3 = st.columns(3)
+    start = p1.number_input("Starting station count", min_value=1, value=TOTAL, step=100)
+    rate = p2.slider("Assumed annual growth (%)", 0, 50, 15)
+    years = p3.slider("Projection period (years)", 1, 15, 5)
 
     proj = pd.DataFrame({"Year": range(years + 1)})
-    proj["Illustrative count"] = (
-        start * (1 + rate / 100) ** proj["Year"]
-    ).round().astype(int)
+    proj["Illustrative count"] = (start * (1 + rate / 100) ** proj["Year"]).round().astype(int)
 
-    fig = px.line(
-        proj,
-        x="Year",
-        y="Illustrative count",
-        markers=True,
-        title="Hypothetical infrastructure growth scenario"
-    )
-    fig.update_layout(
-        template="plotly_dark",
-        paper_bgcolor="#0b1120",
-        plot_bgcolor="#0b1120"
-    )
-    st.plotly_chart(fig, use_container_width=True)
-    st.dataframe(proj, use_container_width=True, hide_index=True)
+    m1, m2 = st.columns(2)
+    m1.metric("Stations after projection", f"{int(proj['Illustrative count'].iloc[-1]):,}")
+    m2.metric("Added stations", f"{int(proj['Illustrative count'].iloc[-1] - start):,}")
+
+    fig = px.area(proj, x="Year", y="Illustrative count", markers=True,
+                  title="Hypothetical infrastructure growth scenario")
+    fig.update_traces(line_color=PRIMARY, fillcolor="rgba(56,189,248,0.18)")
+    st.plotly_chart(style(fig, 400), use_container_width=True)
 
     st.download_button(
-        "Download projection CSV",
+        "⬇️ Download projection CSV",
         proj.to_csv(index=False).encode("utf-8"),
-        "chargewise_projection.csv",
-        "text/csv"
+        "chargewise_projection.csv", "text/csv",
     )
 
-    st.caption(
-        "The starting value is the BEE-reported 26,367 total from "
-        "1 April 2025. Future values are mathematical scenarios based "
-        "on your selected growth assumption."
-    )
-
-elif page == "Data Table & Sources":
-    st.header("Data and Methodology")
-
-    st.dataframe(
-        df.sort_values("Total", ascending=False),
-        use_container_width=True,
-        hide_index=True
-    )
-
+# ---------------------------- DATA & METHOD ---------------------------------
+with tab_data:
+    st.subheader("Data and Methodology")
+    st.dataframe(df.drop(columns=["Selected"]).sort_values("Total", ascending=False),
+                 use_container_width=True, hide_index=True)
     st.download_button(
-        "Download state-wise dataset CSV",
-        df.to_csv(index=False).encode("utf-8"),
-        "chargewise_official_state_counts_apr2025.csv",
-        "text/csv"
+        "⬇️ Download state-wise dataset CSV",
+        df.drop(columns=["Selected"]).to_csv(index=False).encode("utf-8"),
+        "chargewise_official_state_counts_apr2025.csv", "text/csv",
     )
 
-    st.markdown("""
-    **Primary source:** Bureau of Energy Efficiency data, published by
-    the Ministry of Heavy Industries through the Press Information Bureau.
+    st.markdown(
+        """
+**Primary source:** Bureau of Energy Efficiency data, published by the Ministry of Heavy
+Industries through the Press Information Bureau.
 
-    **Reporting date:** 1 April 2025.
+**Reporting date:** 1 April 2025.
 
-    **Coverage:** Public charging stations reported across Tier 1, Tier 2
-    and Tier 3 cities.
+**Coverage:** Public charging stations in Tier 1, Tier 2 and Tier 3 cities.
 
-    **Limitation:** This is aggregated state/UT data, not a list of
-    individual station names, coordinates, connector types or operating
-    status. It should not be interpreted as a live 2026 inventory.
+**Limitations:** Aggregated state/UT counts, not individual station names, coordinates,
+connector types or operating status. Not a live inventory.
 
-    **Gap analysis limitation:** State totals alone cannot identify
-    underserved districts or establish station adequacy.
-    """)
-
+**Gap score (when EV data is uploaded):** `EVs per station = EVs / stations`;
+`Stations needed = max(0, ceil(EVs / target ratio - stations))`.
+"""
+    )
     st.markdown(
         "[Open the official PIB data release]"
         "(https://www.pib.gov.in/PressReleasePage.aspx?PRID=2118894&lang=2&reg=48)"
     )
 
 st.divider()
-st.caption(
-    "ChargeWise India | Public charging infrastructure analysis prototype"
-)
+st.caption("ChargeWise India | Public charging infrastructure analysis prototype")
