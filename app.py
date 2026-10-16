@@ -1,18 +1,32 @@
 # ============================================================
 # ChargeWise India — EV Infrastructure Intelligence Platform
 # Complete Streamlit app: real backend + animated frontend
+# FIXED: HTML is minified so Streamlit renders it (not code block)
 # ============================================================
 
+import re
 import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import plotly.express as px
 from plotly.subplots import make_subplots
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ------------------------------------------------------------
-# Page config (must be the first Streamlit call)
+# HTML minifier — collapses newlines + leading whitespace
+# so Streamlit's markdown parser doesn't treat it as a code block
+# ------------------------------------------------------------
+def clean(s: str) -> str:
+    return re.sub(r"\n\s*", "", s).strip()
+
+
+def md(s: str):
+    """Render an HTML string safely (minified)."""
+    st.markdown(clean(s), unsafe_allow_html=True)
+
+
+# ------------------------------------------------------------
+# Page config
 # ------------------------------------------------------------
 st.set_page_config(
     page_title="ChargeWise India — EV Infrastructure Intelligence",
@@ -22,9 +36,9 @@ st.set_page_config(
 )
 
 # ------------------------------------------------------------
-# Custom CSS — premium light theme + animations
+# Global CSS
 # ------------------------------------------------------------
-st.markdown("""
+md("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
 
@@ -52,12 +66,17 @@ html, body, [class*="css"]{
 #MainMenu, header[data-testid="stHeader"], footer{visibility:hidden; height:0;}
 .block-container{padding: 1.4rem 2.2rem 3rem !important; max-width:100% !important;}
 
-/* ---------- Sidebar ---------- */
 section[data-testid="stSidebar"]{
   background:#FFFFFF;
   border-right:1px solid var(--border);
 }
 section[data-testid="stSidebar"] > div:first-child{padding: 20px 14px;}
+section[data-testid="stSidebar"] label{
+  font-size:12.5px !important; font-weight:600 !important; color:#1D2E48 !important;
+}
+section[data-testid="stSidebar"] .stMultiSelect [data-baseweb="tag"]{
+  background:#0E9F6E !important; border-radius:8px !important;
+}
 
 .brand{
   display:flex; align-items:center; gap:11px;
@@ -80,22 +99,6 @@ section[data-testid="stSidebar"] > div:first-child{padding: 20px 14px;}
   color:#94A3B8; padding: 12px 4px 4px;
 }
 
-/* Streamlit widget overrides */
-section[data-testid="stSidebar"] label{
-  font-size:12.5px !important; font-weight:600 !important; color:#1D2E48 !important;
-}
-section[data-testid="stSidebar"] .stMultiSelect [data-baseweb="tag"]{
-  background:#0E9F6E !important; border-radius:8px !important;
-}
-section[data-testid="stSidebar"] .stMultiSelect [data-baseweb="tag"] span{
-  color:#fff !important; font-weight:600 !important;
-}
-section[data-testid="stSidebar"] input,
-section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]{
-  border-radius:10px !important;
-}
-
-/* ---------- Header ---------- */
 .page-header{
   display:flex; align-items:flex-end; justify-content:space-between;
   gap:24px; padding: 6px 0 16px;
@@ -120,7 +123,6 @@ section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]{
   animation: livePulse 2s infinite;
 }
 
-/* ---------- KPI cards ---------- */
 .kpi-grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:16px; margin-bottom:18px;}
 .kpi-card{
   background:#FFFFFF; border:1px solid var(--border);
@@ -174,13 +176,6 @@ section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]{
   animation: drawLine 1.6s cubic-bezier(.22,1,.36,1) .35s forwards;
 }
 
-/* ---------- Section cards ---------- */
-.section-card{
-  background:#FFFFFF; border:1px solid var(--border); border-radius:18px;
-  padding:18px 20px; box-shadow: 0 1px 3px rgba(16,24,40,.06);
-  animation: fadeUp .7s cubic-bezier(.22,1,.36,1) both;
-  animation-delay:.15s;
-}
 .section-head{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:14px;}
 .section-head h3{font-size:14.5px; font-weight:700; letter-spacing:-.25px; color:#0B1B33; margin:0;}
 .section-head p{font-size:12px; color:#64748B; margin:3px 0 0; font-weight:450;}
@@ -192,7 +187,6 @@ section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]{
 .pill-green{background:#E8F7F1; color:#047857;}
 .pill-red{background:#FEECEC; color:#C0392B;}
 
-/* ---------- Gap panel big number ---------- */
 .gap-hero{
   display:flex; align-items:center; gap:16px;
   padding: 6px 0 16px; border-bottom: 1px solid var(--border); margin-bottom: 12px;
@@ -205,7 +199,6 @@ section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]{
 .gap-hero-text h4{font-size:13.5px; font-weight:700; color:#0B1B33; margin:0 0 5px;}
 .gap-hero-text p{font-size:11.8px; color:#64748B; line-height:1.55; margin:0;}
 
-/* ---------- Table ---------- */
 .corridor-table{
   width:100%; border-collapse:separate; border-spacing:0; font-size:12.8px;
   animation: fadeUp .8s cubic-bezier(.22,1,.36,1) both; animation-delay:.3s;
@@ -218,7 +211,6 @@ section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]{
 .corridor-table td{
   padding: 13px 14px; border-bottom: 1px solid #F1F5F9; vertical-align: middle;
 }
-.corridor-table tr:hover td{background:#F8FAFC;}
 .corridor-name{font-weight:650; font-size:12.8px; color:#0B1B33;}
 .corridor-sub{font-size:11px; color:#94A3B8; font-weight:500; margin-top:1px;}
 .cell-num{font-variant-numeric: tabular-nums; font-weight:650; letter-spacing:-.2px;}
@@ -233,7 +225,6 @@ section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]{
 }
 .sdot{width:6px; height:6px; border-radius:50%;}
 
-/* ---------- Animations ---------- */
 @keyframes fadeUp{
   from{opacity:0; transform: translateY(10px);}
   to{opacity:1; transform: translateY(0);}
@@ -244,24 +235,15 @@ section[data-testid="stSidebar"] .stSelectbox div[data-baseweb="select"]{
   100%{box-shadow: 0 0 0 0 rgba(14,159,110,0);}
 }
 @keyframes drawLine{to{stroke-dashoffset:0;}}
-
-/* ---------- Plotly container tweaks ---------- */
-.js-plotly-plot .plotly .modebar{opacity:.35;}
-.js-plotly-plot .plotly .modebar:hover{opacity:1;}
-
-/* ---------- Divider ---------- */
-hr{border:none; border-top:1px solid var(--border); margin: 22px 0;}
-
-/* ---------- Hide Streamlit default metric look if it ever shows ---------- */
-div[data-testid="stMetricValue"]{font-variant-numeric: tabular-nums;}
+@keyframes growBar{
+  from{width:0 !important;}
+}
 </style>
-""", unsafe_allow_html=True)
-
+""")
 
 # ============================================================
-# BACKEND — data generation & metrics
+# BACKEND
 # ============================================================
-
 CITIES = [
     ("New Delhi","Delhi","North",28.61,77.21,1842,22,"DC Fast"),
     ("Chandigarh","Punjab","North",30.73,76.78,412,31,"AC Type-2"),
@@ -293,36 +275,25 @@ CITIES = [
 ]
 
 CORRIDORS = [
-    {"name":"Delhi – Jaipur (NH-48)","sub":"Delhi · Haryana · Rajasthan","stations":84,"gap":34,"util":78,"status":"Operational","sc":"green",
-     "lats":[28.61,26.91],"lons":[77.21,75.79]},
-    {"name":"Mumbai – Pune Expressway","sub":"Maharashtra","stations":126,"gap":18,"util":86,"status":"Operational","sc":"green",
-     "lats":[19.08,18.52],"lons":[72.88,73.86]},
-    {"name":"Bengaluru – Mysuru (NH-275)","sub":"Karnataka","stations":62,"gap":26,"util":71,"status":"Operational","sc":"green",
-     "lats":[12.97,12.30],"lons":[77.59,76.64]},
-    {"name":"Delhi – Lucknow (NH-27)","sub":"Delhi · UP","stations":41,"gap":68,"util":52,"status":"Under Expansion","sc":"amber",
-     "lats":[28.61,26.85],"lons":[77.21,80.95]},
-    {"name":"Chennai – Coimbatore (NH-544)","sub":"Tamil Nadu","stations":38,"gap":47,"util":64,"status":"Under Expansion","sc":"amber",
-     "lats":[13.08,11.02],"lons":[80.27,76.96]},
-    {"name":"Kolkata – Durgapur (NH-19)","sub":"West Bengal","stations":22,"gap":74,"util":41,"status":"Critical Gap","sc":"red",
-     "lats":[22.57,23.52],"lons":[88.36,87.31]},
-    {"name":"Hyderabad – Vijayawada (NH-65)","sub":"Telangana · Andhra Pradesh","stations":29,"gap":61,"util":57,"status":"Under Expansion","sc":"amber",
-     "lats":[17.39,16.51],"lons":[78.49,80.65]},
+    {"name":"Delhi – Jaipur (NH-48)","sub":"Delhi · Haryana · Rajasthan","stations":84,"gap":34,"util":78,"status":"Operational","sc":"green","lats":[28.61,26.91],"lons":[77.21,75.79]},
+    {"name":"Mumbai – Pune Expressway","sub":"Maharashtra","stations":126,"gap":18,"util":86,"status":"Operational","sc":"green","lats":[19.08,18.52],"lons":[72.88,73.86]},
+    {"name":"Bengaluru – Mysuru (NH-275)","sub":"Karnataka","stations":62,"gap":26,"util":71,"status":"Operational","sc":"green","lats":[12.97,12.30],"lons":[77.59,76.64]},
+    {"name":"Delhi – Lucknow (NH-27)","sub":"Delhi · UP","stations":41,"gap":68,"util":52,"status":"Under Expansion","sc":"amber","lats":[28.61,26.85],"lons":[77.21,80.95]},
+    {"name":"Chennai – Coimbatore (NH-544)","sub":"Tamil Nadu","stations":38,"gap":47,"util":64,"status":"Under Expansion","sc":"amber","lats":[13.08,11.02],"lons":[80.27,76.96]},
+    {"name":"Kolkata – Durgapur (NH-19)","sub":"West Bengal","stations":22,"gap":74,"util":41,"status":"Critical Gap","sc":"red","lats":[22.57,23.52],"lons":[88.36,87.31]},
+    {"name":"Hyderabad – Vijayawada (NH-65)","sub":"Telangana · Andhra Pradesh","stations":29,"gap":61,"util":57,"status":"Under Expansion","sc":"amber","lats":[17.39,16.51],"lons":[78.49,80.65]},
 ]
 
-
 @st.cache_data
-def load_stations() -> pd.DataFrame:
-    df = pd.DataFrame(CITIES, columns=[
-        "city","state","region","lat","lon","stations","gap_index","charger_type"
-    ])
-    # Derived metrics
-    df["utilisation"] = (100 - df["gap_index"] * 0.7 + np.random.RandomState(42).randint(-6, 7, len(df))).clip(30, 95).round(0)
+def load_stations():
+    df = pd.DataFrame(CITIES, columns=["city","state","region","lat","lon","stations","gap_index","charger_type"])
+    rng = np.random.RandomState(42)
+    df["utilisation"] = (100 - df["gap_index"] * 0.7 + rng.randint(-6, 7, len(df))).clip(30, 95).round(0)
     df["online_pct"] = (97 + np.random.RandomState(7).rand(len(df)) * 3).round(1)
     return df
 
-
 @st.cache_data
-def load_sessions() -> pd.DataFrame:
+def load_sessions():
     rng = np.random.RandomState(11)
     dates = pd.date_range(end=datetime.today(), periods=30, freq="D")
     base = 92 + np.arange(30) * 1.9
@@ -330,9 +301,8 @@ def load_sessions() -> pd.DataFrame:
     util = (48 + np.arange(30) * 0.9 + rng.normal(0, 3, 30)).clip(40, 92).round(0)
     return pd.DataFrame({"date": dates, "sessions_k": sessions, "utilisation_pct": util})
 
-
 @st.cache_data
-def load_gap_states() -> pd.DataFrame:
+def load_gap_states():
     return pd.DataFrame([
         {"state":"Bihar","stations":118,"score":82,"color":"#EF4444"},
         {"state":"Uttar Pradesh","stations":604,"score":73,"color":"#EF4444"},
@@ -343,9 +313,8 @@ def load_gap_states() -> pd.DataFrame:
         {"state":"Rajasthan","stations":386,"score":58,"color":"#F59E0B"},
     ])
 
-
 @st.cache_data
-def load_charger_mix() -> pd.DataFrame:
+def load_charger_mix():
     return pd.DataFrame([
         {"type":"DC Fast (≥60 kW)","value":7305,"color":"#0E9F6E"},
         {"type":"AC Type-2 (7–22 kW)","value":8809,"color":"#3B82F6"},
@@ -353,9 +322,8 @@ def load_charger_mix() -> pd.DataFrame:
         {"type":"Bharat DC-001","value":2149,"color":"#F59E0B"},
     ])
 
-
 @st.cache_data
-def load_readiness() -> pd.DataFrame:
+def load_readiness():
     return pd.DataFrame([
         {"region":"South","states":5,"value":88,"target":92,"color":"#0E9F6E"},
         {"region":"West","states":4,"value":79,"target":90,"color":"#0E9F6E"},
@@ -365,11 +333,9 @@ def load_readiness() -> pd.DataFrame:
         {"region":"Northeast","states":8,"value":31,"target":75,"color":"#EF4444"},
     ])
 
-
 # ============================================================
-# HELPERS — SVG sparkline + KPI card HTML
+# HELPERS
 # ============================================================
-
 def sparkline_svg(values, color, w=90, h=34):
     vals = [float(v) for v in values]
     if len(vals) < 2:
@@ -409,7 +375,7 @@ ICONS = {
 def kpi_card(icon_key, icon_bg, icon_fg, label, value, unit, delta_text, delta_kind, note, spark_values, spark_color):
     arrow = ICONS["arrow_up"] if delta_kind == "up" else ICONS["arrow_down"] if delta_kind == "down" else ""
     spark = sparkline_svg(spark_values, spark_color)
-    return f'''
+    return clean(f"""
     <div class="kpi-card">
       <div class="kpi-top">
         <div class="kpi-icon" style="background:{icon_bg};color:{icon_fg}">{ICONS[icon_key]}</div>
@@ -422,7 +388,7 @@ def kpi_card(icon_key, icon_bg, icon_fg, label, value, unit, delta_text, delta_k
         <div class="kpi-spark">{spark}</div>
       </div>
     </div>
-    '''
+    """)
 
 
 # ============================================================
@@ -436,10 +402,10 @@ readiness_df = load_readiness()
 
 
 # ============================================================
-# SIDEBAR FILTERS
+# SIDEBAR
 # ============================================================
 with st.sidebar:
-    st.markdown('''
+    md("""
     <div class="brand">
       <div class="brand-mark">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -451,9 +417,9 @@ with st.sidebar:
         <div class="brand-sub">India · EV Intel</div>
       </div>
     </div>
-    ''', unsafe_allow_html=True)
+    """)
 
-    st.markdown('<div class="side-label">Filters</div>', unsafe_allow_html=True)
+    md('<div class="side-label">Filters</div>')
 
     region_options = ["All India"] + sorted(stations_df["region"].unique().tolist())
     region_choice = st.selectbox("Region", region_options, index=0)
@@ -465,15 +431,15 @@ with st.sidebar:
     max_stations = int(stations_df["stations"].max())
     station_range = st.slider("Min. charging points", min_stations, max_stations, min_stations, step=50)
 
-    st.markdown('<div class="side-label">Time period</div>', unsafe_allow_html=True)
+    md('<div class="side-label">Time period</div>')
     days_back = st.slider("Days of history", 7, 30, 14, step=1)
 
-    st.markdown('<div class="side-label">Display</div>', unsafe_allow_html=True)
+    md('<div class="side-label">Display</div>')
     show_gap_zones = st.checkbox("Show gap hotspots", value=True)
     show_corridors = st.checkbox("Show priority corridors", value=True)
 
-    st.markdown("---")
-    st.markdown('''
+    md("---")
+    md("""
     <div style="background:linear-gradient(160deg,#F3FBF8,#EAF7F2); border:1px solid #D6EEE3; border-radius:14px; padding:14px; margin-top:6px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:9px;">
         <div style="font-size:11.5px;font-weight:700;color:#047857;letter-spacing:.2px;">Network Health</div>
@@ -485,11 +451,11 @@ with st.sidebar:
       </div>
       <div style="font-size:11px;color:#64748B;margin-top:8px;">21,486 of 21,880 points online</div>
     </div>
-    ''', unsafe_allow_html=True)
+    """)
 
 
 # ============================================================
-# APPLY FILTERS
+# FILTERS
 # ============================================================
 filtered = stations_df.copy()
 if region_choice != "All India":
@@ -498,7 +464,6 @@ if charger_choice:
     filtered = filtered[filtered["charger_type"].isin(charger_choice)]
 filtered = filtered[filtered["stations"] >= station_range]
 
-# Sessions filtered by day count
 sessions_show = sessions_df.tail(days_back).copy()
 
 
@@ -514,7 +479,7 @@ avg_util = round(sessions_show["utilisation_pct"].mean(), 1) if len(sessions_sho
 region_label = region_choice if region_choice != "All India" else "All India"
 charger_label = "All Types" if len(charger_choice) == len(charger_options) else f"{len(charger_choice)} types"
 
-st.markdown(f'''
+md(f"""
 <div class="page-header">
   <div class="page-title">
     <h1>National Overview</h1>
@@ -522,186 +487,99 @@ st.markdown(f'''
   </div>
   <div class="live-chip"><span class="live-dot"></span> Live · updated just now</div>
 </div>
-''', unsafe_allow_html=True)
+""")
 
 
 # ============================================================
 # KPI ROW
 # ============================================================
 kpi_html = '<div class="kpi-grid">'
-kpi_html += kpi_card(
-    "bolt", "#E8F7F1", "#047857",
-    "Total Charging Points",
-    f"{total_stations:,}",
-    "",
-    "+12.4%", "up",
-    f"<b>{len(filtered)}</b> cities in view",
-    [12,14,13,16,18,17,21,20,24,23,27,29],
-    "#0E9F6E",
-)
-kpi_html += kpi_card(
-    "pin", "#EAF2FE", "#1D4ED8",
-    "States & UTs Covered",
-    f"{n_states}",
-    " / 36",
-    f"+{max(1, n_states//14)}", "up",
-    f"<b>{round(n_states/36*100,1)}%</b> national coverage",
-    [14,15,16,17,18,19,20,22,23,25,26,n_states],
-    "#3B82F6",
-)
-kpi_html += kpi_card(
-    "alert", "#FEF4E3", "#B45309",
-    "Avg. Charging Gap Index",
-    f"{avg_gap}",
-    "",
-    "−3.2 pts", "down",
-    "Moderate deficit · <b>improving</b>",
-    [58,56,55,53,52,50,49,48,47,45,44,avg_gap],
-    "#F59E0B",
-)
-kpi_html += kpi_card(
-    "chart", "#F3EEFE", "#6D28D9",
-    f"Charging Sessions · {days_back}d",
-    f"{total_sessions:,}",
-    "K",
-    "+8.1%", "up",
-    f"<b>{avg_util}%</b> avg utilisation",
-    [88,92,86,98,105,101,112,108,119,124,121,128],
-    "#8B5CF6",
-)
+kpi_html += kpi_card("bolt","#E8F7F1","#047857","Total Charging Points",f"{total_stations:,}","","+12.4%","up",f"<b>{len(filtered)}</b> cities in view",[12,14,13,16,18,17,21,20,24,23,27,29],"#0E9F6E")
+kpi_html += kpi_card("pin","#EAF2FE","#1D4ED8","States & UTs Covered",f"{n_states}"," / 36",f"+{max(1, n_states//14)}","up",f"<b>{round(n_states/36*100,1)}%</b> national coverage",[14,15,16,17,18,19,20,22,23,25,26,n_states],"#3B82F6")
+kpi_html += kpi_card("alert","#FEF4E3","#B45309","Avg. Charging Gap Index",f"{avg_gap}","","−3.2 pts","down","Moderate deficit · <b>improving</b>",[58,56,55,53,52,50,49,48,47,45,44,avg_gap],"#F59E0B")
+kpi_html += kpi_card("chart","#F3EEFE","#6D28D9",f"Charging Sessions · {days_back}d",f"{total_sessions:,}","K","+8.1%","up",f"<b>{avg_util}%</b> avg utilisation",[88,92,86,98,105,101,112,108,119,124,121,128],"#8B5CF6")
 kpi_html += '</div>'
-st.markdown(kpi_html, unsafe_allow_html=True)
+md(kpi_html)
 
 
 # ============================================================
-# ROW 1 — MAP + GAP PANEL
+# MAP + GAP
 # ============================================================
 col_map, col_gap = st.columns([1.65, 1], gap="medium")
 
 with col_map:
-    st.markdown('''
+    md("""
     <div class="section-head" style="margin-bottom:8px;">
       <div>
         <h3>Infrastructure Coverage Map</h3>
         <p>Station density, gap hotspots &amp; priority corridors</p>
       </div>
     </div>
-    ''', unsafe_allow_html=True)
+    """)
 
-    # Build Plotly geo map
     fig = go.Figure()
 
-    # Gap zones (big translucent circles)
     if show_gap_zones:
         for _, row in filtered.iterrows():
             if row["gap_index"] >= 65:
-                col = "rgba(239,68,68,0.18)"
-                line_col = "rgba(239,68,68,0.35)"
+                col, line_col = "rgba(239,68,68,0.18)", "rgba(239,68,68,0.35)"
             elif row["gap_index"] >= 45:
-                col = "rgba(245,158,11,0.16)"
-                line_col = "rgba(245,158,11,0.32)"
+                col, line_col = "rgba(245,158,11,0.16)", "rgba(245,158,11,0.32)"
             else:
-                col = "rgba(16,185,129,0.12)"
-                line_col = "rgba(16,185,129,0.28)"
+                col, line_col = "rgba(16,185,129,0.12)", "rgba(16,185,129,0.28)"
             fig.add_trace(go.Scattergeo(
-                lat=[row["lat"]],
-                lon=[row["lon"]],
-                mode="markers",
-                marker=dict(
-                    size=max(30, row["stations"] / 12),
-                    color=col,
-                    line=dict(color=line_col, width=1),
-                ),
-                hoverinfo="skip",
-                showlegend=False,
+                lat=[row["lat"]], lon=[row["lon"]], mode="markers",
+                marker=dict(size=max(30, row["stations"] / 12), color=col, line=dict(color=line_col, width=1)),
+                hoverinfo="skip", showlegend=False,
             ))
 
-    # Corridor lines
     if show_corridors:
         for c in CORRIDORS:
             fig.add_trace(go.Scattergeo(
-                lat=c["lats"], lon=c["lons"],
-                mode="lines",
+                lat=c["lats"], lon=c["lons"], mode="lines",
                 line=dict(color="#0E9F6E", width=2, dash="dot"),
-                hoverinfo="skip",
-                showlegend=False,
-                opacity=0.75,
+                hoverinfo="skip", showlegend=False, opacity=0.75,
             ))
 
-    # Station markers
     if len(filtered):
         fig.add_trace(go.Scattergeo(
-            lat=filtered["lat"],
-            lon=filtered["lon"],
-            mode="markers",
+            lat=filtered["lat"], lon=filtered["lon"], mode="markers",
             text=filtered["city"],
-            customdata=np.stack([
-                filtered["state"],
-                filtered["stations"],
-                filtered["gap_index"],
-                filtered["charger_type"],
-            ], axis=-1),
+            customdata=np.stack([filtered["state"], filtered["stations"], filtered["gap_index"], filtered["charger_type"]], axis=-1),
             marker=dict(
                 size=(filtered["stations"] ** 0.55) / 1.6 + 8,
                 color=filtered["gap_index"],
-                colorscale=[
-                    [0.0, "#10B981"],
-                    [0.45, "#F59E0B"],
-                    [1.0, "#EF4444"],
-                ],
+                colorscale=[[0.0,"#10B981"],[0.45,"#F59E0B"],[1.0,"#EF4444"]],
                 cmin=0, cmax=100,
                 line=dict(color="#ffffff", width=1.6),
                 opacity=0.95,
-                colorbar=dict(
-                    title=dict(text="Gap", font=dict(size=10, color="#64748B")),
-                    thickness=8,
-                    len=0.55,
-                    x=0.99,
-                    tickfont=dict(size=9, color="#94A3B8"),
-                    outlinewidth=0,
-                ),
+                colorbar=dict(title=dict(text="Gap", font=dict(size=10, color="#64748B")), thickness=8, len=0.55, x=0.99, tickfont=dict(size=9, color="#94A3B8"), outlinewidth=0),
             ),
-            hovertemplate=(
-                "<b>%{text}</b><br>"
-                "%{customdata[0]}<br>"
-                "Stations: <b>%{customdata[1]}</b><br>"
-                "Gap index: <b>%{customdata[2]}</b><br>"
-                "Type: %{customdata[3]}"
-                "<extra></extra>"
-            ),
+            hovertemplate=("<b>%{text}</b><br>%{customdata[0]}<br>Stations: <b>%{customdata[1]}</b><br>Gap index: <b>%{customdata[2]}</b><br>Type: %{customdata[3]}<extra></extra>"),
             showlegend=False,
         ))
 
     fig.update_geos(
-        scope="asia",
-        center=dict(lat=22.5, lon=79),
+        scope="asia", center=dict(lat=22.5, lon=79),
         projection=dict(type="mercator", scale=4.6),
         showland=True, landcolor="#F1F8F5",
         showocean=True, oceancolor="#F8FBFE",
         showcountries=True, countrycolor="#D6E5DE",
         showcoastlines=True, coastlinecolor="#C9DDD4", coastlinewidth=0.8,
-        showframe=False,
-        bgcolor="rgba(0,0,0,0)",
+        showframe=False, bgcolor="rgba(0,0,0,0)",
         lataxis=dict(range=[5, 37], showgrid=False),
         lonaxis=dict(range=[66, 98], showgrid=False),
     )
     fig.update_layout(
-        height=520,
-        margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        height=520, margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Inter, sans-serif", size=11, color="#0B1B33"),
-        hoverlabel=dict(
-            bgcolor="#0B1B33",
-            bordercolor="#0B1B33",
-            font=dict(color="#fff", family="Inter, sans-serif", size=12),
-        ),
+        hoverlabel=dict(bgcolor="#0B1B33", bordercolor="#0B1B33", font=dict(color="#fff", family="Inter, sans-serif", size=12)),
     )
     st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
 
-
 with col_gap:
-    st.markdown(f'''
+    md(f"""
     <div class="section-head" style="margin-bottom:8px;">
       <div>
         <h3>Charging Gap Index</h3>
@@ -709,7 +587,6 @@ with col_gap:
       </div>
       <span class="pill pill-amber">Action needed</span>
     </div>
-
     <div class="gap-hero">
       <div>
         <div class="gap-big-num">{avg_gap}</div>
@@ -720,19 +597,13 @@ with col_gap:
         <p>7 states remain below the 60% adequacy threshold. Bihar &amp; Jharkhand show the steepest shortfall.</p>
       </div>
     </div>
-    ''', unsafe_allow_html=True)
+    """)
 
-    # Horizontal bar chart of gap states
     gap_sorted = gap_states.sort_values("score", ascending=True)
     fig_gap = go.Figure()
     fig_gap.add_trace(go.Bar(
-        x=gap_sorted["score"],
-        y=gap_sorted["state"],
-        orientation="h",
-        marker=dict(
-            color=gap_sorted["color"],
-            line=dict(width=0),
-        ),
+        x=gap_sorted["score"], y=gap_sorted["state"], orientation="h",
+        marker=dict(color=gap_sorted["color"], line=dict(width=0)),
         text=[f"<b>{s}</b>" for s in gap_sorted["score"]],
         textposition="outside",
         textfont=dict(color="#0B1B33", size=12, family="Inter, sans-serif"),
@@ -740,21 +611,11 @@ with col_gap:
         width=0.62,
     ))
     fig_gap.update_layout(
-        height=280,
-        margin=dict(l=0, r=30, t=8, b=8),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        height=280, margin=dict(l=0, r=30, t=8, b=8),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Inter, sans-serif", size=11, color="#0B1B33"),
-        xaxis=dict(
-            range=[0, 100],
-            showgrid=True, gridcolor="#F1F5F9", zeroline=False,
-            showline=False, ticks="",
-            tickfont=dict(size=10, color="#94A3B8"),
-        ),
-        yaxis=dict(
-            showgrid=False, zeroline=False,
-            tickfont=dict(size=11.5, color="#1D2E48"),
-        ),
+        xaxis=dict(range=[0,100], showgrid=True, gridcolor="#F1F5F9", zeroline=False, showline=False, ticks="", tickfont=dict(size=10, color="#94A3B8")),
+        yaxis=dict(showgrid=False, zeroline=False, tickfont=dict(size=11.5, color="#1D2E48")),
         bargap=0.35,
         hoverlabel=dict(bgcolor="#0B1B33", font=dict(color="#fff", family="Inter, sans-serif")),
     )
@@ -762,153 +623,107 @@ with col_gap:
 
 
 # ============================================================
-# ROW 2 — SESSIONS AREA CHART + (DONUT + READINESS)
+# SESSIONS + DONUT + READINESS
 # ============================================================
 col_sessions, col_right = st.columns([1.6, 1], gap="medium")
 
 with col_sessions:
-    st.markdown('''
+    md("""
     <div class="section-head" style="margin-bottom:8px;">
       <div>
         <h3>Charging Sessions &amp; Grid Utilisation</h3>
         <p>Daily session volume against average charger utilisation</p>
       </div>
     </div>
-    ''', unsafe_allow_html=True)
+    """)
 
     fig_area = make_subplots(specs=[[{"secondary_y": True}]])
-
     fig_area.add_trace(
         go.Scatter(
-            x=sessions_show["date"],
-            y=sessions_show["sessions_k"],
-            name="Sessions (K)",
-            mode="lines",
-            line=dict(color="#0E9F6E", width=2.6, shape="spline"),
-            fill="tozeroy",
-            fillcolor="rgba(14,159,110,0.14)",
+            x=sessions_show["date"], y=sessions_show["sessions_k"], name="Sessions (K)",
+            mode="lines", line=dict(color="#0E9F6E", width=2.6, shape="spline"),
+            fill="tozeroy", fillcolor="rgba(14,159,110,0.14)",
             hovertemplate="<b>%{x|%b %d}</b><br>Sessions: %{y}K<extra></extra>",
-        ),
-        secondary_y=False,
-    )
+        ), secondary_y=False)
     fig_area.add_trace(
         go.Scatter(
-            x=sessions_show["date"],
-            y=sessions_show["utilisation_pct"],
-            name="Utilisation (%)",
-            mode="lines",
-            line=dict(color="#1D2E48", width=1.9, dash="dash"),
+            x=sessions_show["date"], y=sessions_show["utilisation_pct"], name="Utilisation (%)",
+            mode="lines", line=dict(color="#1D2E48", width=1.9, dash="dash"),
             hovertemplate="<b>%{x|%b %d}</b><br>Utilisation: %{y}%<extra></extra>",
-        ),
-        secondary_y=True,
-    )
-
+        ), secondary_y=True)
     fig_area.update_layout(
-        height=340,
-        margin=dict(l=0, r=0, t=8, b=8),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        height=340, margin=dict(l=0, r=0, t=8, b=8),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Inter, sans-serif", size=11, color="#0B1B33"),
-        showlegend=False,
-        hovermode="x unified",
+        showlegend=False, hovermode="x unified",
         hoverlabel=dict(bgcolor="#0B1B33", font=dict(color="#fff", family="Inter, sans-serif")),
-        xaxis=dict(
-            showgrid=False, zeroline=False, showline=False, ticks="",
-            tickfont=dict(size=10.5, color="#94A3B8"),
-            tickformat="%b %d",
-        ),
-        yaxis=dict(
-            showgrid=True, gridcolor="#F1F5F9", zeroline=False, showline=False, ticks="",
-            tickfont=dict(size=10.5, color="#94A3B8"),
-            title=dict(text="Sessions (K)", font=dict(size=10.5, color="#94A3B8")),
-        ),
-        yaxis2=dict(
-            showgrid=False, zeroline=False, showline=False, ticks="",
-            tickfont=dict(size=10.5, color="#94A3B8"),
-            title=dict(text="Utilisation (%)", font=dict(size=10.5, color="#94A3B8")),
-            range=[30, 100],
-        ),
+        xaxis=dict(showgrid=False, zeroline=False, showline=False, ticks="", tickfont=dict(size=10.5, color="#94A3B8"), tickformat="%b %d"),
+        yaxis=dict(showgrid=True, gridcolor="#F1F5F9", zeroline=False, showline=False, ticks="", tickfont=dict(size=10.5, color="#94A3B8"), title=dict(text="Sessions (K)", font=dict(size=10.5, color="#94A3B8"))),
+        yaxis2=dict(showgrid=False, zeroline=False, showline=False, ticks="", tickfont=dict(size=10.5, color="#94A3B8"), title=dict(text="Utilisation (%)", font=dict(size=10.5, color="#94A3B8")), range=[30,100]),
     )
     st.plotly_chart(fig_area, use_container_width=True, config={"displayModeBar": False})
 
-
 with col_right:
-    # ---- Donut chart ----
-    st.markdown('''
+    md("""
     <div class="section-head" style="margin-bottom:6px;">
       <div>
         <h3>Charger Type Mix</h3>
         <p>Nationwide distribution</p>
       </div>
     </div>
-    ''', unsafe_allow_html=True)
+    """)
 
     fig_donut = go.Figure()
     fig_donut.add_trace(go.Pie(
-        values=charger_mix["value"],
-        labels=charger_mix["type"],
-        hole=0.68,
-        marker=dict(
-            colors=charger_mix["color"],
-            line=dict(color="#FFFFFF", width=3),
-        ),
+        values=charger_mix["value"], labels=charger_mix["type"], hole=0.68,
+        marker=dict(colors=charger_mix["color"], line=dict(color="#FFFFFF", width=3)),
         textinfo="none",
         hovertemplate="<b>%{label}</b><br>%{value:,} points<br>%{percent}<extra></extra>",
-        sort=False,
-        direction="clockwise",
+        sort=False, direction="clockwise",
     ))
-
     total_points = int(charger_mix["value"].sum())
     fig_donut.update_layout(
-        height=250,
-        margin=dict(l=0, r=0, t=0, b=0),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
+        height=250, margin=dict(l=0, r=0, t=0, b=0),
+        paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
         font=dict(family="Inter, sans-serif", size=11, color="#0B1B33"),
         showlegend=False,
         hoverlabel=dict(bgcolor="#0B1B33", font=dict(color="#fff", family="Inter, sans-serif")),
-        annotations=[
-            dict(
-                text=f"<b style='font-size:22px;color:#0B1B33;'>{total_points:,}</b><br>"
-                     f"<span style='font-size:10px;color:#94A3B8;letter-spacing:0.5px;'>TOTAL POINTS</span>",
-                x=0.5, y=0.5, showarrow=False,
-                font=dict(family="Inter, sans-serif"),
-            )
-        ],
+        annotations=[dict(
+            text=f"<b style='font-size:22px;color:#0B1B33;'>{total_points:,}</b><br><span style='font-size:10px;color:#94A3B8;letter-spacing:0.5px;'>TOTAL POINTS</span>",
+            x=0.5, y=0.5, showarrow=False, font=dict(family="Inter, sans-serif"),
+        )],
     )
     st.plotly_chart(fig_donut, use_container_width=True, config={"displayModeBar": False})
 
-    # Legend under donut
     legend_html = '<div style="display:flex;flex-direction:column;gap:2px;margin-top:-8px;">'
     total_val = charger_mix["value"].sum()
     for _, row in charger_mix.iterrows():
         pct = round(row["value"] / total_val * 100)
-        legend_html += f'''
+        legend_html += clean(f"""
         <div style="display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:9px;">
           <span style="width:9px;height:9px;border-radius:3px;background:{row["color"]};flex-shrink:0;"></span>
           <span style="font-size:12px;font-weight:550;color:#1D2E48;flex:1;">{row["type"]}</span>
           <span style="font-size:12px;font-weight:700;color:#0B1B33;font-variant-numeric:tabular-nums;">{row["value"]:,}</span>
           <span style="font-size:11px;color:#94A3B8;font-weight:600;min-width:34px;text-align:right;font-variant-numeric:tabular-nums;">{pct}%</span>
         </div>
-        '''
+        """)
     legend_html += '</div>'
-    st.markdown(legend_html, unsafe_allow_html=True)
+    md(legend_html)
 
-    st.markdown('<hr style="margin: 16px 0;"/>', unsafe_allow_html=True)
+    md('<hr style="margin: 16px 0;"/>')
 
-    # ---- Readiness bars ----
-    st.markdown('''
+    md("""
     <div class="section-head" style="margin-bottom:10px;">
       <div>
         <h3>Regional Readiness</h3>
         <p>Coverage vs. 2027 target</p>
       </div>
     </div>
-    ''', unsafe_allow_html=True)
+    """)
 
     readiness_html = '<div style="display:flex;flex-direction:column;gap:14px;">'
     for _, r in readiness_df.iterrows():
-        readiness_html += f'''
+        readiness_html += clean(f"""
         <div>
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:7px;">
             <div style="font-size:12.3px;font-weight:600;color:#0B1B33;">
@@ -921,23 +736,23 @@ with col_right:
             <div style="position:absolute;top:-3px;left:{r["target"]}%;width:2px;height:13px;background:#0B1B33;border-radius:2px;opacity:.28;"></div>
           </div>
         </div>
-        '''
+        """)
     readiness_html += '</div>'
-    st.markdown(readiness_html, unsafe_allow_html=True)
+    md(readiness_html)
 
 
 # ============================================================
-# ROW 3 — CORRIDOR TABLE
+# CORRIDOR TABLE
 # ============================================================
-st.markdown('<hr/>', unsafe_allow_html=True)
-st.markdown('''
+md('<hr/>')
+md("""
 <div class="section-head" style="margin-bottom:12px;">
   <div>
     <h3>Priority Charging Corridors</h3>
     <p>Highway corridors ranked by infrastructure gap severity &amp; traffic potential</p>
   </div>
 </div>
-''', unsafe_allow_html=True)
+""")
 
 status_map = {
     "green": ("#E8F7F1", "#047857", "#10B981"),
@@ -949,7 +764,7 @@ rows_html = ""
 for c in CORRIDORS:
     bg, fg, dot = status_map[c["sc"]]
     gap_col = "#EF4444" if c["gap"] >= 65 else "#F59E0B" if c["gap"] >= 45 else "#10B981"
-    rows_html += f'''
+    rows_html += clean(f"""
     <tr>
       <td>
         <div class="corridor-name">{c["name"]}</div>
@@ -970,9 +785,9 @@ for c in CORRIDORS:
         </span>
       </td>
     </tr>
-    '''
+    """)
 
-st.markdown(f'''
+md(f"""
 <table class="corridor-table">
   <thead>
     <tr>
@@ -987,17 +802,17 @@ st.markdown(f'''
     {rows_html}
   </tbody>
 </table>
-''', unsafe_allow_html=True)
+""")
 
 
 # ============================================================
 # FOOTER
 # ============================================================
-st.markdown(f'''
+md(f"""
 <div style="margin-top:28px; padding-top:18px; border-top:1px solid #E7ECF2;
             display:flex; align-items:center; justify-content:space-between;
             font-size:11.5px; color:#94A3B8; font-weight:500;">
   <div>ChargeWise India · EV Infrastructure Intelligence Platform</div>
   <div>Last updated {datetime.now().strftime("%d %b %Y · %H:%M")} · {len(filtered)} cities in view</div>
 </div>
-''', unsafe_allow_html=True)
+""")
