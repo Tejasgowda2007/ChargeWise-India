@@ -15,13 +15,14 @@ st.set_page_config(
     page_title="ChargeWise India — EV Intelligence",
     page_icon="⚡",
     layout="wide",
-    initial_sidebar_state="collapsed", # Collapsed to give map more room
+    initial_sidebar_state="expanded",
 )
 
+# Utility to safely render HTML without Streamlit treating it as a code block
 def md(html):
     st.markdown(re.sub(r"\n\s*", "", html).strip(), unsafe_allow_html=True)
 
-# Inject CSS
+# Inject Premium CSS
 md("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap');
@@ -42,12 +43,16 @@ html, body, [class*="css"] {
     background-color: var(--bg);
     color: var(--text-main);
 }
-h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; font-weight: 700; letter-spacing: -0.02em; }
+h1, h2, h3, h4 { 
+    font-family: 'Outfit', sans-serif; 
+    font-weight: 700; 
+    letter-spacing: -0.02em; 
+}
 
 #MainMenu, header[data-testid="stHeader"], footer {visibility: hidden; height: 0;}
 .block-container {padding: 1rem 2rem 4rem !important; max-width: 1600px !important;}
 
-/* Compact Hero */
+/* Hero Section */
 .hero-container {
     background: linear-gradient(135deg, #FFFFFF 0%, #F1F5F9 100%);
     border: 1px solid var(--border);
@@ -59,13 +64,29 @@ h1, h2, h3, h4 { font-family: 'Outfit', sans-serif; font-weight: 700; letter-spa
     display: flex; justify-content: space-between; align-items: center;
     animation: fadeUp 0.8s ease-out both;
 }
-.hero-title { font-size: 2.8rem; line-height: 1.1; margin-bottom: 0.5rem; background: linear-gradient(90deg, #0F172A, #047857); -webkit-background-clip: text; -webkit-text-fill-color: transparent;}
+.hero-title { 
+    font-size: 2.8rem; line-height: 1.1; margin-bottom: 0.5rem; 
+    background: linear-gradient(90deg, #0F172A, #047857); 
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
 .hero-subtitle { font-size: 1rem; color: var(--text-muted); max-width: 600px; line-height: 1.5; margin:0;}
-.hero-badge { display: inline-flex; align-items: center; gap: 8px; background: rgba(16, 185, 129, 0.1); color: var(--emerald-dark); padding: 6px 14px; border-radius: 100px; font-weight: 600; font-size: 0.8rem; margin-bottom: 1rem; border: 1px solid rgba(16, 185, 129, 0.2);}
-.hero-pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--emerald); box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); animation: pulse 2s infinite;}
+.hero-badge { 
+    display: inline-flex; align-items: center; gap: 8px; 
+    background: rgba(16, 185, 129, 0.1); color: var(--emerald-dark); 
+    padding: 6px 14px; border-radius: 100px; font-weight: 600; 
+    font-size: 0.8rem; margin-bottom: 1rem; border: 1px solid rgba(16, 185, 129, 0.2);
+}
+.hero-pulse { 
+    width: 8px; height: 8px; border-radius: 50%; background: var(--emerald); 
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); animation: pulse 2s infinite;
+}
 
 /* KPI Strip */
-.kpi-strip { display: flex; gap: 2rem; padding: 1.5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; margin-bottom: 1.5rem; animation: fadeUp 0.8s ease-out 0.1s both;}
+.kpi-strip { 
+    display: flex; gap: 2rem; padding: 1.5rem; background: var(--surface); 
+    border: 1px solid var(--border); border-radius: 16px; margin-bottom: 1.5rem; 
+    animation: fadeUp 0.8s ease-out 0.1s both;
+}
 .kpi-item { flex: 1; border-right: 1px solid var(--border); padding-right: 1.5rem;}
 .kpi-item:last-child { border-right: none; }
 .kpi-label { font-size: 0.8rem; color: var(--text-muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.4rem;}
@@ -223,9 +244,6 @@ md(f"""
         <div class="hero-badge"><div class="hero-pulse"></div> System Online · {len(df_filtered)} Nodes Active</div>
         <h1 class="hero-title">Powering India's Electric Future.</h1>
         <p class="hero-subtitle">Discover charging infrastructure, uncover underserved regions, and explore the next frontier of India's EV mobility network.</p>
-    </div>
-    <div style="text-align:right; display:none;">
-        <!-- Hidden element to balance flexbox -->
     </div>
 </div>
 """)
