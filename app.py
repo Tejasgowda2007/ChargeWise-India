@@ -416,3 +416,4 @@ with col2:
         showlegend=True, legend=dict(orientation="h", y=-0.1)
     )
     st.plotly_chart(fig_pie, use_container_width=True, config={"displayModeBar": False})
+    
